@@ -50,48 +50,116 @@ Create a data frame containing the most dangerous vehicle make in each state. Th
 per1<-per%>%
   na.omit(MAKE)%>%
   group_by(STATE, MAKE)%>%
+  rename(`State Code`= STATE)%>%
   summarize(n=n())%>%
   filter(n==max(n))
   
 per1
 ```
+**s
+
 # Question 4
 Create a map, and label each state with the most dangerous vehicle. Discuss the definition of the most dangerous vehicle, and what you find from the map.   (Hint: Read the description for the STATE and COUNTY columns in the FARS manual. The state & county codes are Geographic Locator Codes (GLCs) from the General Services Administration’s (GSA) publication. Use readxl::read_xlsx to read in the GLCs.)
 
 ```{r}
 library(readxl)
-textytext <- readxl::read_xlsx(./states.xlsx)
 states = map_data("state")
-counties = map_data("county")
 
-ggplot(states, aes(x=long, y=lat))+geom_path(aes(group=group))+geom_polygon(aes(group=group))
+textytext<- readxl::read_xlsx("./states.xlsx")%>%
+  mutate(`State Name`= tolower(`State Name`)) %>%
+  mutate(`State Code`=as.numeric(`State Code`))%>%
+  left_join(per1)%>%
+  group_by(`State Code`, MAKE)
 
+states1<-states%>%
+  group_by(region)%>%
+  summarize(avelong=mean(long), avelat=mean(lat), group=median(group))%>%
+  left_join(textytext, by=c(region='State Name'))
+  
 
-
+ggplot(states, aes(x='long', y='lat')) + 
+  geom_polygon(aes(group = group)) + 
+  geom_text(aes(x=avelong, y=avelat, label = MAKE), data = states1)
 ```
+
+**Although this map is less-than-ideal, the most dangerous vehicle .**
+
 # Question 5
 Join the accident and person table (work out which variable(s) to use)
 
 ```{r}
-
+baby<-acc %>%
+  right_join(per, by='ST_CASE')%>%
+  unique()
+head(baby)
 ```
+**Handsome baby data frame**
+
 # Question 6
 Tally the number of accidents by day of the week (DAY_WEEK), hour of the day (HOUR) and gender (SEX). Visualize the results and explain what you find.
 
 ```{r}
+baby0 <- baby %>%
+  mutate(SEX = factor(SEX, levels=c(1, 2), labels=c('Male','Female'))) %>%
+  na.omit() %>%
+  group_by(DAY_WEEK, SEX) %>%
+  summarize(`Count of Accidents`=n())
 
+ggplot(baby0, aes(x=DAY_WEEK, y=`Count of Accidents`, fill=SEX, label=`Count of Accidents`)) + geom_bar(stat="identity", position="dodge") + geom_text()
 ```
+**Men are involved in many more accidents than women. Accidents are most frequent for both genders during the weekend.**
+
+```{r}
+baby1<- baby%>%
+  mutate(SEX = factor(SEX, levels=c(1, 2), labels=c('Male','Female'))) %>%
+  na.omit() %>%
+  filter(HOUR.x %in% 1:24)%>%
+  group_by(HOUR.x, SEX) %>%
+  summarize(`Count of Accidents`=n())
+
+ggplot(baby1, aes(x=HOUR.x, y=`Count of Accidents`, fill=SEX, label=`Count of Accidents`)) + geom_bar(stat="identity", position="dodge") + geom_text()
+```
+**Men crash more than women during all hours of the day, particularly real early in the morning. Accidents peak for both genders around rush hour.**
+
 # Question 7
 Now plot a choropleth map of the number of deaths on a county level. Also explain what you find.
 
 ```{r}
+counties = map_data("county")
+
+acc2<-acc%>%
+  select(STATE, FATALS, COUNTY)%>%
+  filter(FATALS!=0)%>%
+  group_by(STATE, COUNTY)%>%
+  summarize(sum=sum(FATALS))
+
+
+
+zzz<- textytext%>%
+  mutate(subregion = tolower(`County Name`), STATE=as.numeric(`State Code`), COUNTY=as.numeric(`County Code`))%>%
+  select(subregion, STATE,`COUNTY`)%>%
+  left_join(acc2, by=c('STATE','COUNTY'))%>%
+  group_by(STATE, COUNTY)%>%
+  unique()%>%
+  left_join(counties)%>%
+  unique()
+
+ggplot(zzz, aes(x=long, y=lat, fill=sum))+geom_polygon(aes(group=group))
 
 ```
+**The LA Metro generally has the highest number of per county accidents.**
+
 # Question 8
 Is summer or winter more dangerous? Does this depend on states? Explore and explain.
 
 ```{r}
+#zonked <- textytext%>%
+ # mutate(STATE=as.numeric(`State Code`))%>%
+  #select(`State Name`, STATE)%>%
+  #left_join(acc)%>%
+#  filter(FATALS!=0)
 
+#zonked
 ```
 
 
